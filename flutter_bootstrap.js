@@ -41,51 +41,29 @@ if (!window._flutter) {
 _flutter.buildConfig = {"engineRevision":"89c39edfdfae2949f6806e4a315c0c08522238b7","wasmHashes":{"canvaskit.wasm":"fbed517a43e82452404446683f00f2e876d835aed84410695759e67b6bb01cd3","chromium/canvaskit.wasm":"ae8ff1d858140f7b1300ced3fa89fb8c9dce0a400a0f4f1e11f6dcfb3315fdcf","skwasm.wasm":"e540fd5e8303b7b68ec2718cb49e9c421f8ade3075b15e02a7059a62654df9a1","skwasm_heavy.wasm":"565f5cc1cca6ab120f11934b105f01fec4b58b480c82e0889dca93af8e6f8635","webparagraph/canvaskit.wasm":"0ce1b05082efdc8529550e8a01f6ff0593972d55525035010e26f5600aa9f254","wimp.wasm":"e924eaafd801d41e017d178f3fd5cf8a417f641fe35c9ed34a4e1d7582283e0c"},"builds":[{"compileTarget":"dart2js","renderer":"canvaskit","mainJsPath":"main.dart.js"},{}]};
 
 
-async function clearPreviousFlutterServiceWorker() {
+const pwaServiceWorkerVersion = "476272743" /* Flutter's service worker is deprecated and will be removed in a future Flutter release. */;
+
+async function registerPwaServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
 
   try {
-    const registrations = await navigator.serviceWorker.getRegistrations();
-    const isFlutterWorker = (worker) =>
-      worker &&
-      new URL(worker.scriptURL).pathname.endsWith('/flutter_service_worker.js');
-    const hadFlutterController = isFlutterWorker(
-      navigator.serviceWorker.controller,
-    );
-    const flutterRegistrations = registrations.filter((registration) =>
-      [registration.active, registration.waiting, registration.installing]
-        .some(isFlutterWorker),
-    );
-    await Promise.all(
-      flutterRegistrations.map((registration) => registration.unregister()),
-    );
-
-    if ('caches' in window) {
-      const cacheNames = await caches.keys();
-      const flutterCacheNames = cacheNames.filter((name) =>
-        /^(flutter-app-cache|flutter-temp-cache|flutter-app-manifest)/.test(name),
-      );
-      await Promise.all(flutterCacheNames.map((name) => caches.delete(name)));
-    }
-
-    const reloadKey = 'trax_flutter_worker_removed';
-    if (
-      hadFlutterController &&
-      sessionStorage.getItem(reloadKey) !== 'true'
-    ) {
-      sessionStorage.setItem(reloadKey, 'true');
-      window.location.reload();
-      return true;
-    }
-    if (!hadFlutterController) sessionStorage.removeItem(reloadKey);
+    const workerUrl = new URL('pwa_service_worker.js', document.baseURI);
+    workerUrl.searchParams.set('v', pwaServiceWorkerVersion ?? 'dev');
+    await navigator.serviceWorker.register(workerUrl, {
+      scope: new URL('.', document.baseURI).pathname,
+      updateViaCache: 'none',
+    });
+    await navigator.serviceWorker.ready;
   } catch (error) {
-    console.warn('Failed to clear the previous Flutter web cache:', error);
+    console.warn('Offline app cache is unavailable:', error);
   }
-  return false;
 }
 
-clearPreviousFlutterServiceWorker().then((reloadRequired) => {
-  if (!reloadRequired) {
-    _flutter.loader.load({ serviceWorkerSettings: null });
-  }
+registerPwaServiceWorker().finally(() => {
+  _flutter.loader.load({
+    serviceWorkerSettings: null,
+    config: {
+      canvasKitBaseUrl: new URL('canvaskit/', document.baseURI).toString(),
+    },
+  });
 });
