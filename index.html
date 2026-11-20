@@ -33,6 +33,42 @@
 
   <title>أَهْلُ اللَّه</title>
   <link rel="manifest" href="manifest.json">
+  <script>
+    // Automatic silent self-updating script for Flutter Web
+    (async function() {
+      try {
+        const res = await fetch('version.json?t=' + Date.now(), { cache: 'no-store' });
+        if (res.ok) {
+          const data = await res.json();
+          const serverVersion = data.version;
+          const storedVersion = localStorage.getItem('app_build_version');
+          if (serverVersion) {
+            if (!storedVersion) {
+              localStorage.setItem('app_build_version', serverVersion);
+            } else if (storedVersion !== serverVersion) {
+              localStorage.setItem('app_build_version', serverVersion);
+              if ('serviceWorker' in navigator) {
+                const registrations = await navigator.serviceWorker.getRegistrations();
+                for (let registration of registrations) {
+                  await registration.unregister();
+                }
+              }
+              if ('caches' in window) {
+                const keys = await caches.keys();
+                for (let key of keys) {
+                  await caches.delete(key);
+                }
+              }
+              window.location.reload(true);
+              return;
+            }
+          }
+        }
+      } catch (e) {
+        console.error('Auto-update check failed:', e);
+      }
+    })();
+  </script>
 </head>
 <body>
   <!--
